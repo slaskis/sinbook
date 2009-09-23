@@ -60,10 +60,9 @@ module Sinatra
     def params
       return {} unless valid?
       app.env['facebook.params'] ||= \
-        app.params.inject({}) { |h,(k,v)|
-          next h unless k =~ /^fb_sig_(.+)$/
+        app.params.inject({}) do |h,(k,v)|
+          next h unless k =~ /^(?:fb_sig|#{self.api_key})_(.+)$/
           k = $1.to_sym
-
           case $1
           when 'friends'
             h[k] = v.split(',').map{|e|e.to_i}
@@ -80,7 +79,7 @@ module Sinatra
             h[k] = v
           end
           h
-        }
+        end
     end
 
     def [] key
@@ -88,9 +87,12 @@ module Sinatra
     end
 
     def valid?
-      return false unless app.params['fb_sig']
+      app.params.merge!( app.request.cookies )
+      return false unless app.params['fb_sig'] || app.params[self.api_key]
+      sig = Digest::MD5.hexdigest(app.params.map{|k,v| "#{$1}=#{v}" if k =~ /^(?:fb_sig|#{self.api_key})_(.+)$/ }.compact.sort.join+self.secret)
       app.env['facebook.valid?'] ||= \
-        app.params['fb_sig'] == Digest::MD5.hexdigest(app.params.map{|k,v| "#{$1}=#{v}" if k =~ /^fb_sig_(.+)$/ }.compact.sort.join+self.secret)
+        app.params['fb_sig'] == sig || \
+        app.params[self.api_key] == sig
     end
 
     class APIProxy
