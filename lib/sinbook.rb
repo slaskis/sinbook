@@ -87,12 +87,12 @@ module Sinatra
     end
 
     def valid?
-      app.params.merge!( app.request.cookies )
-      return false unless app.params['fb_sig'] || app.params[self.api_key]
-      sig = Digest::MD5.hexdigest(app.params.map{|k,v| "#{$1}=#{v}" if k =~ /^(?:fb_sig|#{self.api_key})_(.+)$/ }.compact.sort.join+self.secret)
-      app.env['facebook.valid?'] ||= \
-        app.params['fb_sig'] == sig || \
-        app.params[self.api_key] == sig
+      cur_params = app.params['fb_sig'] ? app.params : app.request.cookies
+      return false unless cur_params['fb_sig'] || cur_params[self.api_key]
+      return app.env['facebook.valid?'] if app.env['facebook.valid?']
+      sig = Digest::MD5.hexdigest(cur_params.map{|k,v| "#{$1}=#{v}" if k =~ /^(?:fb_sig|#{self.api_key})_(.+)$/ }.compact.sort.join+self.secret)
+      app.env['facebook.valid?'] ||= ( app.params['fb_sig'] == sig || app.params[self.api_key] == sig )
+      app.params.merge!( cur_params )
     end
 
     class APIProxy
